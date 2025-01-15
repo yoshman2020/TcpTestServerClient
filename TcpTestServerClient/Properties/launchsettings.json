@@ -1,0 +1,10 @@
+﻿{
+    "profiles": {
+      "TcpTestServerClient (Unpackaged)": {
+        "commandName": "Project"
+      },
+      "TcpTestServerClient (Package)": {
+        "commandName": "MsixPackage"
+      }
+    }
+}
