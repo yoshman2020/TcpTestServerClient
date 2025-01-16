@@ -109,6 +109,15 @@
                 IsChecked="{x:Bind ViewModel.IsStxEtxEnabled, Mode=TwoWay}"
                 IsEnabled="{x:Bind ViewModel.IsConnectEnabled, Mode=OneWay}"
                 />
+            <CheckBox
+                Grid.Row="3"
+                Grid.Column="1"
+                x:Name="chkIsAutoResponse"
+                x:Uid="Main_chkIsAutoResponse"
+                Margin="10"
+                IsChecked="{x:Bind ViewModel.IsAutoResponse, Mode=TwoWay}"
+                IsEnabled="{x:Bind ViewModel.IsConnectEnabled, Mode=OneWay}"
+                />
             <Button
                 Grid.Row="3"
                 Grid.Column="3"

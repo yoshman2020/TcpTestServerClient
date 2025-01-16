@@ -145,6 +145,9 @@
   <data name="Main_chkIsStxEtxEnabled.Content" xml:space="preserve">
     <value>Use STX,ETX</value>
   </data>
+  <data name="Main_chkIsAutoResponse.Content" xml:space="preserve">
+    <value>Auto response</value>
+  </data>
   <data name="Main_btnSend.Content" xml:space="preserve">
     <value>Send</value>
   </data>

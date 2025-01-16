@@ -60,6 +60,12 @@ public partial class MainViewModel : ObservableValidator
     private bool isStxEtxEnabled = true;
 
     /// <summary>
+    /// 自動返信
+    /// </summary>
+    [ObservableProperty]
+    private bool isAutoResponse = true;
+
+    /// <summary>
     /// サーバーであるか
     /// </summary>
     [ObservableProperty]
@@ -187,11 +193,15 @@ public partial class MainViewModel : ObservableValidator
                 // 送信可
                 IsSendEnabled = true;
 
-                // 返信メッセージ作成
-                var response = MessageProcessor.CreateResponse(ReceivedMessage);
+                if (IsAutoResponse)
+                {
+                    // 自動返信
+                    // 返信メッセージ作成
+                    var response = MessageProcessor.CreateResponse(ReceivedMessage);
 
-                // TcpServiceで送信
-                await _tcpService.SendMessageAsync(response, IsStxEtxEnabled);
+                    // TcpServiceで送信
+                    await _tcpService.SendMessageAsync(response, IsStxEtxEnabled);
+                }
             }
             else
             {
