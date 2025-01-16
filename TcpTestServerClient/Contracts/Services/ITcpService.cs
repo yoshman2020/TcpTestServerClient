@@ -45,9 +45,10 @@ public interface ITcpService
     /// <param name="hostName">ホスト名</param>
     /// <param name="port">ポート</param>
     /// <param name="timeoutSec">タイムアウト（秒）</param>
+    /// <param name="isStxEtxEnabled">STX、ETX使用</param>
     /// <returns>接続状態</returns>
     Task<ConnectionStatus> ConnectAsync(bool isServer,
-        string hostName, int port, int timeoutSec);
+        string hostName, int port, int timeoutSec, bool isStxEtxEnabled);
 
     /// <summary>
     /// 再接続
@@ -56,10 +57,11 @@ public interface ITcpService
     /// <param name="hostName">ホスト名</param>
     /// <param name="port">ポート</param>
     /// <param name="timeoutSec">タイムアウト（秒）</param>
+    /// <param name="isStxEtxEnabled">STX、ETX使用</param>
     /// <param name="maxAttempts">再試行回数</param>
     /// <returns>接続状態</returns>
     public Task<ConnectionStatus> ReconnectAsync(bool isServer,
-        string hostName, int port, int timeoutSec,
+        string hostName, int port, int timeoutSec, bool isStxEtxEnabled,
         int maxAttempts = 3);
 
     /// <summary>
@@ -71,13 +73,15 @@ public interface ITcpService
     /// <summary>
     /// 送信
     /// </summary>
-    /// <param name="message"></param>
+    /// <param name="message">送信メッセージ</param>
+    /// <param name="isStxEtxEnabled">STX、ETX使用</param>
     /// <returns></returns>
-    Task SendMessageAsync(string message);
+    Task SendMessageAsync(string message, bool isStxEtxEnabled);
 
     /// <summary>
     /// 受信
     /// </summary>
+    /// <param name="isStxEtxEnabled">STX、ETX使用</param>
     /// <returns></returns>
-    Task ReceiveMessageAsync();
+    Task ReceiveMessageAsync(bool isStxEtxEnabled);
 }

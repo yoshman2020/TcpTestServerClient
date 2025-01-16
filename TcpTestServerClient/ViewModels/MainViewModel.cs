@@ -54,6 +54,12 @@ public partial class MainViewModel : ObservableValidator
     private int timeoutSec = 3;
 
     /// <summary>
+    /// STX、ETX使用
+    /// </summary>
+    [ObservableProperty]
+    private bool isStxEtxEnabled = true;
+
+    /// <summary>
     /// サーバーであるか
     /// </summary>
     [ObservableProperty]
@@ -185,7 +191,7 @@ public partial class MainViewModel : ObservableValidator
                 var response = MessageProcessor.CreateResponse(ReceivedMessage);
 
                 // TcpServiceで送信
-                await _tcpService.SendMessageAsync(response);
+                await _tcpService.SendMessageAsync(response, IsStxEtxEnabled);
             }
             else
             {
@@ -346,7 +352,7 @@ public partial class MainViewModel : ObservableValidator
             IsDisconnectEnabled = true;
             IsSendEnabled = false;
             var connectionStatus = await _tcpService.ConnectAsync(IsServer,
-                HostName!, Port, TimeoutSec);
+                HostName!, Port, TimeoutSec, IsStxEtxEnabled);
             switch (connectionStatus)
             {
                 case ConnectionStatus.ServerNotStarted:
@@ -401,10 +407,10 @@ public partial class MainViewModel : ObservableValidator
             if (!_tcpService.IsConnected)
             {
                 await _tcpService.ReconnectAsync(IsServer,
-                    HostName!, Port, TimeoutSec);
+                    HostName!, Port, TimeoutSec, IsStxEtxEnabled);
             }
 
-            await _tcpService.SendMessageAsync(SendMessage);
+            await _tcpService.SendMessageAsync(SendMessage, IsStxEtxEnabled);
         }
         catch (Exception ex)
         {

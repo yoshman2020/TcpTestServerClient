@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Linq;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using Microsoft.Extensions.Logging;
@@ -95,14 +96,15 @@ public partial class TcpService(ILogger<TcpService> logger)
     /// <param name="hostName">ホスト名</param>
     /// <param name="port">ポート</param>
     /// <param name="timeoutSec">タイムアウト（秒）</param>
+    /// <param name="isStxEtxEnabled">STX、ETX使用</param>
     /// <returns>接続状態</returns>
     /// <exception cref="Exception">その他エラー</exception>
     public async Task<ConnectionStatus> ConnectAsync(bool isServer,
-        string hostName, int port, int timeoutSec)
+        string hostName, int port, int timeoutSec, bool isStxEtxEnabled)
     {
         _logger.LogDebug(
-            @"Start isServer={isServer}, hostName={hostName}, port={port}, timeoutSec={timeoutSec}",
-            isServer, hostName, port, timeoutSec);
+            @"Start isServer={isServer}, hostName={hostName}, port={port}, timeoutSec={timeoutSec}, isStxEtxEnabled={isStxEtxEnabled}",
+            isServer, hostName, port, timeoutSec, isStxEtxEnabled);
         try
         {
             IsServer = isServer;
@@ -110,8 +112,8 @@ public partial class TcpService(ILogger<TcpService> logger)
             _timeoutMsec = timeoutSec * 1000;
             if (isServer)
             {
-            _listener = new TcpListener(IPAddress.Any, port);
-            _listener.Start();
+                _listener = new TcpListener(IPAddress.Any, port);
+                _listener.Start();
             }
             else
             {
@@ -128,8 +130,8 @@ public partial class TcpService(ILogger<TcpService> logger)
             {
                 _client = await _listener!.AcceptTcpClientAsync(
                 _cancellationTokenSource.Token);
-            _client!.SendTimeout = _timeoutMsec;
-            _client!.ReceiveTimeout = _timeoutMsec;
+                _client!.SendTimeout = _timeoutMsec;
+                _client!.ReceiveTimeout = _timeoutMsec;
             }
             else
             {
@@ -138,7 +140,7 @@ public partial class TcpService(ILogger<TcpService> logger)
             }
             _stream = _client.GetStream();
             _isConnected = true;
-            _ = ReceiveMessageAsync();
+            _ = ReceiveMessageAsync(isStxEtxEnabled);
         }
         catch (OperationCanceledException)
         {
@@ -154,9 +156,9 @@ public partial class TcpService(ILogger<TcpService> logger)
             _logger.LogDebug(@"{Message}", socketEx.Message);
             if (isServer)
             {
-            Disconnect(DisconnectionCause.OtherDisconnected);
-            return ConnectionStatus.OtherDisconnected;
-        }
+                Disconnect(DisconnectionCause.OtherDisconnected);
+                return ConnectionStatus.OtherDisconnected;
+            }
             else
             {
                 // Serverが未開始
@@ -182,21 +184,23 @@ public partial class TcpService(ILogger<TcpService> logger)
     /// <param name="hostName">ホスト名</param>
     /// <param name="port">ポート</param>
     /// <param name="timeoutSec">タイムアウト（秒）</param>
+    /// <param name="isStxEtxEnabled">STX、ETX使用</param>
     /// <param name="maxAttempts">再試行回数</param>
     /// <returns>接続状態</returns>
     public async Task<ConnectionStatus> ReconnectAsync(bool isServer,
-        string hostName, int port, int timeoutSec, int maxAttempts = 3)
+        string hostName, int port, int timeoutSec, bool isStxEtxEnabled,
+        int maxAttempts = 3)
     {
         _logger.LogDebug(
-            @"start isServer={isServer}, hostName={hostName}, port={port}, timeoutSec={timeoutSec}, maxAttempts={maxAttempts}",
-            isServer, hostName, port, timeoutSec, maxAttempts);
+            @"start isServer={isServer}, hostName={hostName}, port={port}, timeoutSec={timeoutSec}, isStxEtxEnabled={isStxEtxEnabled}, maxAttempts={maxAttempts}",
+            isServer, hostName, port, timeoutSec, isStxEtxEnabled, maxAttempts);
         var attempts = 0;
         while (attempts < maxAttempts && !_isConnected)
         {
             try
             {
                 var ret = await ConnectAsync(
-                    isServer, hostName, port, timeoutSec);
+                    isServer, hostName, port, timeoutSec, isStxEtxEnabled);
                 return ret;
             }
             catch (Exception)
@@ -224,16 +228,23 @@ public partial class TcpService(ILogger<TcpService> logger)
             disconnectionCause);
         try
         {
+            _isConnected = false;
+            _listener?.Stop();
             if (!_isCanceled)
             {
-                _isConnected = false;
-                _listener?.Stop();
                 _cancellationTokenSource?.Cancel();
                 _stream?.Dispose();
                 _client?.Dispose();
                 _cancellationTokenSource?.Dispose();
                 _isCanceled = true;
                 Disconnected?.Invoke(this, disconnectionCause);
+            }
+            else
+            {
+                // 念のため
+                _stream?.Dispose();
+                _client?.Dispose();
+                _cancellationTokenSource?.Dispose();
             }
         }
         catch (ObjectDisposedException)
@@ -251,8 +262,9 @@ public partial class TcpService(ILogger<TcpService> logger)
     /// <summary>
     /// 受信
     /// </summary>
+    /// <param name="isStxEtxEnabled">STX、ETX使用</param>
     /// <returns></returns>
-    public async Task ReceiveMessageAsync()
+    public async Task ReceiveMessageAsync(bool isStxEtxEnabled)
     {
         _logger.LogDebug("Start");
 
@@ -264,6 +276,8 @@ public partial class TcpService(ILogger<TcpService> logger)
         try
         {
             var buffer = new byte[BufferSize];
+            // メッセージを格納するためのバッファ
+            var messageBuffer = new List<byte>();
 
             while (_isConnected && _stream != null)
             {
@@ -278,10 +292,48 @@ public partial class TcpService(ILogger<TcpService> logger)
                     return;
                 }
 
-                var message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                if (isStxEtxEnabled)
+                {
+                    // STX、ETX使用
+                    // 受信したバイトを messageBuffer に追加
+                    for (var i = 0; i < bytesRead; i++)
+                    {
+                        var currentByte = buffer[i];
 
-                // 受信したメッセージを通知
-                MessageReceived?.Invoke(this, message);
+                        // STX（0x02）でメッセージの開始
+                        if (currentByte == 0x02)
+                        {
+                            // STXが見つかったら、以前のメッセージをクリア
+                            messageBuffer.Clear();
+                        }
+                        // ETX（0x03）でメッセージの終了
+                        else if (currentByte == 0x03)
+                        {
+                            if (messageBuffer.Count > 0)
+                            {
+                                // 完全なメッセージを取得した場合
+                                var message =
+                                    Encoding.UTF8.GetString([.. messageBuffer]);
+                                // 受信したメッセージを通知
+                                MessageReceived?.Invoke(this, message);
+                            }
+                        }
+                        else
+                        {
+                            // STXとETXの間のデータをバッファに追加
+                            messageBuffer.Add(currentByte);
+                        }
+                    }
+                }
+                else
+                {
+                    // STX、ETX未使用
+                    // 完全なメッセージを取得した場合
+                    var messageSe =
+                        Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                    // 受信したメッセージを通知
+                    MessageReceived?.Invoke(this, messageSe);
+                }
             }
         }
         catch (OperationCanceledException)
@@ -300,9 +352,10 @@ public partial class TcpService(ILogger<TcpService> logger)
     /// <summary>
     /// 送信
     /// </summary>
-    /// <param name="message"></param>
+    /// <param name="message">送信メッセージ</param>
+    /// <param name="isStxEtxEnabled">STX、ETX使用</param>
     /// <returns></returns>
-    public async Task SendMessageAsync(string message)
+    public async Task SendMessageAsync(string message, bool isStxEtxEnabled)
     {
         _logger.LogDebug(@"Start message={message}", message);
         if (_stream == null || !_isConnected)
@@ -312,7 +365,9 @@ public partial class TcpService(ILogger<TcpService> logger)
         try
         {
             var buffer = Encoding.UTF8.GetBytes(message);
-            await _stream!.WriteAsync(buffer, _cancellationTokenSource!.Token);
+            // STX、ETXを使用する場合は追加
+            var bufferSend = isStxEtxEnabled ? [0x02, .. buffer, 0x03] : buffer;
+            await _stream!.WriteAsync(bufferSend, _cancellationTokenSource!.Token);
 
             // 送信したメッセージを通知
             MessageSend?.Invoke(this, message);

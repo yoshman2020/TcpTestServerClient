@@ -142,6 +142,9 @@
   <data name="Main_numTimeoutSec.Header" xml:space="preserve">
     <value>タイムアウト（秒）</value>
   </data>
+  <data name="Main_chkIsStxEtxEnabled.Content" xml:space="preserve">
+    <value>STX,ETX使用</value>
+  </data>
   <data name="Main_btnSend.Content" xml:space="preserve">
     <value>送信</value>
   </data>
